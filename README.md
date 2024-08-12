@@ -16,6 +16,7 @@ Welcome to the improved and actively maintained fork of [GooglePhotosMatcher](ht
 ## Why Choose This Tool?
 - **Effortless Metadata Recovery**: Automatically restores dates and locations to your photos and videos.
 - **Handles Edited Files**: Keeps your original and edited versions organized.
+- **Compatible with Any JSON**: Works beyond Google Photos—simply ensure your image and JSON share the same name, and the metadata will be matched.
 
 ## FAQs
 
