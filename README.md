@@ -19,8 +19,8 @@ Welcome to the improved and actively maintained fork of [GooglePhotosMatcher](ht
 
 ## FAQs
 
-### What’s in the _EditedRaw_ Folder?
-Edited photos/videos are saved in `Matched`, while originals are in `EditedRaw`.
+### What’s in the _Originals_ Folder?
+Edited photos/videos are saved in `Matched`, while originals are in `Originals`.
 
 ### Why Are Some Files Unmatched?
 Special characters in filenames can cause mismatches. Some filetypes are also not supported. Currently, JPG, JPEG, TIF, and TIFF are supported.
