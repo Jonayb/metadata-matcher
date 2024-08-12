@@ -3,7 +3,8 @@
 Welcome to the improved and actively maintained fork of [GooglePhotosMatcher](https://github.com/anderbggo/GooglePhotosMatcher/tree/main). This version is faster, cleaner, and fixes critical bugs that affected your photo metadata.
 
 ### What's New:
-- **Preserve Original Metadata**: Fixed issues where metadata was lost and file sizes varied after processing.
+- **Preserve Original Metadata**: Fixed issues where original photo metadata was lost.
+- **Keep Original File Sizes**: Fixed the issue where file sizes varied after processing.
 - **Accurate Time Zones**:  Corrected timestamp processing (original code assumed local timezones, but Google Photos Takeout uses UTC).
 
 ## Restore Your Photo Metadata in 3 Easy Steps:
