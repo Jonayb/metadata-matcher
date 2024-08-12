@@ -1,30 +1,41 @@
-from main import *
+import PySimpleGUI as sg
+from main import main_process  # Assuming you renamed mainProcess to main_process
 
-sg.theme("DarkTeal2")
-layout = [[sg.T("")],
-          [sg.Text('Enter suffix used for edited photos (optional):')],
-          [sg.InputText(key='-INPUT_TEXT-'), sg.ReadFormButton('Help')],
-          [sg.T("")],
-          [sg.Text("Choose a folder: ")],
-          [sg.Input(key="-IN2-", change_submits=True), sg.FolderBrowse(key="-IN-")],
-          [sg.T("")],
-          [sg.Button("Match")],
-          [sg.T("")],
-          [sg.ProgressBar(100, visible=False, orientation='h', border_width=4, key='-PROGRESS_BAR-')],
-          [sg.T("", key='-PROGRESS_LABEL-')]]
+# Set the theme for the window
+sg.theme("SandyBeach")
 
-window = sg.Window('Google Photos Matcher', layout, icon='photos.ico')
+# Define the layout for the window
+layout = [
+    [sg.Text('Enter suffix used for edited photos (optional):')],
+    [sg.InputText(key='-INPUT_TEXT-'), sg.Button('Help')],
+    [sg.Text("Choose a folder:")],
+    [sg.Input(key="-IN2-", enable_events=True), sg.FolderBrowse()],
+    [sg.Button("Match", size=(10, 1))],
+    [sg.ProgressBar(100, visible=False, orientation='h', size=(30, 20), key='-PROGRESS_BAR-')],
+    [sg.Text("", size=(40, 1), key='-PROGRESS_LABEL-', justification='center')]
+]
 
+# Create the window
+window = sg.Window('Google Photos Matcher', layout, icon='photos.ico', finalize=True)
+
+# Event loop
 while True:
     event, values = window.read()
 
-    if event == sg.WIN_CLOSED or event == "Exit":
+    if event in (sg.WIN_CLOSED, "Exit"):
         break
     elif event == "Match":
-        mainProcess(values["-IN2-"], window, values['-INPUT_TEXT-'])
+        # Call the main processing function with the selected folder, window object, and input text
+        main_process(values["-IN2-"], window, values['-INPUT_TEXT-'])
     elif event == "Help":
-        sg.Popup("", "Media edited with the integrated editor of google photos "
-                 "will download both the original image 'Example.jpg' and the edited version 'Example-editado.jpg'.", "",
-                "The 'editado' suffix changes depending on the language (in the case of Spain it will be 'editado').","",
-                "If you leave this box blank default spanish suffix will be used to search for edited photos.",
-                 "", title="Information", icon='photos.ico')
+        # Display help information in a popup
+        sg.Popup(
+            "Media edited with the integrated editor of Google Photos will download both the original image 'Example.jpg' "
+            "and the edited version 'Example-editado.jpg'. The 'editado' suffix changes depending on the language "
+            "(e.g., 'editato' for Spanish). If you leave this box blank, the default Spanish suffix will be used.",
+            title="Information",
+            icon='photos.ico'
+        )
+
+# Close the window
+window.close()

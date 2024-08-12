@@ -1,93 +1,95 @@
-from auxFunctions import *
+import os
 import json
 from PIL import Image
-import PySimpleGUI as sg
+from helpers import create_folders, search_media, set_exif
 
-def mainProcess(browserPath, window, editedW):
-    piexifCodecs = [k.casefold() for k in ['TIF', 'TIFF', 'JPEG', 'JPG']]
 
-    mediaMoved = []  # array with names of all the media already matched
-    path = browserPath  # source path
-    fixedMediaPath = path + "\MatchedMedia"  # destination path
-    nonEditedMediaPath = path + "\EditedRaw"
-    errorCounter = 0
-    successCounter = 0
-    editedWord = editedW or "editado"
-    print(editedWord)
+def main_process(browser_path, window, edited_word="-editado"):
+    piexif_codecs = {'tif', 'tiff', 'jpeg', 'jpg'}
+    media_moved = []  # List of already matched media
+    matched_media_path = os.path.join(browser_path, "Matched")
+    non_edited_media_path = os.path.join(browser_path, "Originals")
+    error_counter = 0
+    success_counter = 0
 
     try:
-        obj = list(os.scandir(path))  #Convert iterator into a list to sort it
-        obj.sort(key=lambda s: len(s.name)) #Sort by length to avoid name(1).jpg be processed before name.jpg
-        createFolders(fixedMediaPath, nonEditedMediaPath)
+        # Convert iterator to a list and sort by length to process shorter names first
+        files = sorted(os.scandir(browser_path), key=lambda s: len(s.name))
+        create_folders(matched_media_path, non_edited_media_path)
     except Exception as e:
         window['-PROGRESS_LABEL-'].update("Choose a valid directory", visible=True, text_color='red')
         return
 
-    for entry in obj:
-        if entry.is_file() and entry.name.endswith(".json"):  # Check if file is a JSON
-            with open(entry, encoding="utf8") as f:  # Load JSON into a var
-                data = json.load(f)
+    total_files = len(files)
 
-            progress = round(obj.index(entry)/len(obj)*100, 2)
-            window['-PROGRESS_LABEL-'].update(str(progress) + "%", visible=True)
+    for index, entry in enumerate(files):
+        if entry.is_file() and entry.name.endswith(".json"):
+            try:
+                with open(entry.path, encoding="utf8") as f:
+                    data = json.load(f)
+            except json.JSONDecodeError as e:
+                print(f"Error decoding JSON {entry.name}: {e}")
+                error_counter += 1
+                continue
+
+            progress = round((index + 1) / total_files * 100, 2)
+            window['-PROGRESS_LABEL-'].update(f"{progress}%", visible=True)
             window['-PROGRESS_BAR-'].update(progress, visible=True)
 
-            #SEARCH MEDIA ASSOCIATED TO JSON
-
-            titleOriginal = data['title']  # Store metadata into vars
+            # Search for associated media
+            title_original = data.get('title', '')
 
             try:
-                title = searchMedia(path, titleOriginal, mediaMoved, nonEditedMediaPath, editedWord)
-
+                title = search_media(browser_path, title_original, media_moved, non_edited_media_path, edited_word)
             except Exception as e:
-                print("Error on searchMedia() with file " + titleOriginal)
-                errorCounter += 1
+                print(f"Error in search_media() with file {title_original}: {e}")
+                error_counter += 1
                 continue
 
-            filepath = path + "\\" + title
             if title == "None":
-                print(titleOriginal + " not found")
-                errorCounter += 1
+                print(f"{title_original} not found")
+                error_counter += 1
                 continue
 
-            # METADATA EDITION
-            timeStamp = int(data['photoTakenTime']['timestamp'])  # Get creation time
+            filepath = os.path.join(browser_path, title)
+            timestamp = int(data['photoTakenTime']['timestamp'])
             print(filepath)
 
-            if title.rsplit('.', 1)[1].casefold() in piexifCodecs:  # If EXIF is supported
+            file_extension = title.rsplit('.', 1)[-1].casefold()
+            if file_extension in piexif_codecs:
                 try:
-                    im = Image.open(filepath)
-
-                except ValueError as e:
-                    print("Error converting to JPG in " + title)
-                    errorCounter += 1
+                    with Image.open(filepath) as im:
+                        set_exif(
+                            filepath=filepath,
+                            image=im,
+                            lat=data['geoData']['latitude'],
+                            lng=data['geoData']['longitude'],
+                            altitude=data['geoData']['altitude'],
+                            timestamp=timestamp
+                        )
+                except Exception as e:
+                    print(f"Error handling EXIF data for {title}: {e}")
+                    error_counter += 1
                     continue
 
-                try:
-                    set_EXIF(filepath, im, data['geoData']['latitude'], data['geoData']['longitude'], data['geoData']['altitude'], timeStamp)
+            # Move file and delete JSON
+            try:
+                os.replace(filepath, os.path.join(matched_media_path, title))
+                os.remove(entry.path)
+            except OSError as e:
+                print(f"Error moving or deleting file {title}: {e}")
+                error_counter += 1
+                continue
 
-                except Exception as e:  # Error handler
-                    print("Inexistent EXIF data for " + filepath)
-                    print(str(e))
-                    errorCounter += 1
-                    continue
+            media_moved.append(title)
+            success_counter += 1
 
-            #MOVE FILE AND DELETE JSON
+    success_message = " success" if success_counter == 1 else " successes"
+    error_message = " error" if error_counter == 1 else " errors"
 
-            os.replace(filepath, fixedMediaPath + "\\" + title)
-            os.remove(path + "\\" + entry.name)
-            mediaMoved.append(title)
-            successCounter += 1
-
-    sucessMessage = " successes"
-    errorMessage = " errors"
-
-    #UPDATE INTERFACE
-    if successCounter == 1:
-        sucessMessage = " success"
-
-    if errorCounter == 1:
-        errorMessage = " error"
-
+    # Update the interface
     window['-PROGRESS_BAR-'].update(100, visible=True)
-    window['-PROGRESS_LABEL-'].update("Matching process finished with " + str(successCounter) + sucessMessage + " and " + str(errorCounter) + errorMessage + ".", visible=True, text_color='#c0ffb3')
+    window['-PROGRESS_LABEL-'].update(
+        f"Matching process finished with {success_counter}{success_message} and {error_counter}{error_message}.",
+        visible=True, text_color='#c0ffb3'
+    )
