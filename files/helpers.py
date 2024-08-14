@@ -4,7 +4,8 @@ import piexif
 from fractions import Fraction
 
 
-def search_media(path, title, media_moved, non_edited_dir, edited_word):
+
+def search_media(path, title, media_moved, original_dir, edited_word, truncated=False):
     """
     Searches for media associated with the JSON file.
 
@@ -12,66 +13,70 @@ def search_media(path, title, media_moved, non_edited_dir, edited_word):
         path: Directory path where media files are stored.
         title: Original media title from the JSON file.
         media_moved: List of already moved media titles to avoid duplicates.
-        non_edited_dir: Directory where non-edited media will be moved.
+        original_dir: Directory where original media will be moved.
         edited_word: Word used to identify edited versions of files.
+        truncated: Whether to truncate the media file's basename
 
     Returns:
         The real title of the matched media if found, otherwise None.
     """
     title = sanitize_title(title)
+    if truncated:
+        title = truncate_title(title)
+    base_filename = title.rsplit('.', 1)[0]
+    file_extension = title.rsplit('.', 1)[1]
 
-    # Attempt to find the media file using the edited title format.
-    real_title = find_existing_media(path, title, suffix=edited_word)
+    # Attempt to find the media file using the edited title format
+    real_title = find_existing_media(path, base_filename, file_extension, suffix=edited_word, is_edited=True)
 
-    # If not found, attempt to find the media file using the original title format.
-    if not real_title:
-        real_title = find_existing_media(path, title, suffix='', is_edited=False)
-
-    # If still not found, check for a duplicate name with a numbered suffix like (1), (2), etc.
-    if not real_title:
-        real_title = find_duplicate_name(title, media_moved, recursion_level=1)
-
-    # If not found, attempt to truncate the title (to handle filesystem limits) and search again.
-    if not real_title:
-        short_title = truncate_title(title, length=47)  # Truncate the title to 47 characters.
-        real_title = find_existing_media(path, short_title, suffix=edited_word)
-
-        # If the truncated version isn't found, check for a duplicate name with the truncated title.
-        if not real_title:
-            real_title = find_duplicate_name(short_title, media_moved, recursion_level=1)
-
-    # If a valid title is found, move the associated file to the non-edited directory.
     if real_title:
-        move_to_non_edited(os.path.join(path, real_title), non_edited_dir)
+        # If we have found the real (edited) title, move the normal title to the original folder
+        move_to_original(os.path.join(path, title), original_dir)
+        return real_title
+    else:
+        # Otherwise, attempt to find the media file using the original title format
+        real_title = find_existing_media(path, base_filename, file_extension, suffix='', is_edited=False)
 
-    # Return the found title or None if no media file was found.
-    return real_title
+    if real_title:
+        return real_title
+    else:
+        # Check for a duplicate name with a numbered suffix like (1), (2), etc.
+        real_title = find_duplicate_name(path, base_filename, file_extension, media_moved, recursion_level=1)
+
+    if real_title:
+        return real_title
+    elif not truncated:
+        # Attempt the search again with the truncated title.
+        return search_media(path, title, media_moved, original_dir, edited_word, truncated=True)
+
+    return None  # Return None if no media file was found after all attempts.
 
 
-def find_existing_media(path, title, suffix, is_edited=True):
+def find_existing_media(path, base_filename, file_extension, suffix, is_edited=True):
     """
     Finds media file by checking the existence of various possible filenames.
 
     Args:
         path: Directory path
-        title: Original media title
+        base_filename: Original media title without extension
+        file_extension: Extension of the media file
         suffix: Suffix to add to the title (e.g., "-bewerkt")
         is_edited: Boolean to indicate if the file is edited
 
     Returns:
         The real title if found, None otherwise
     """
-    possible_title = f"{title.rsplit('.', 1)[0]}{suffix}.{title.rsplit('.', 1)[1]}"
+    possible_title = f"{base_filename}{suffix}.{file_extension}"
     possible_path = os.path.join(path, possible_title)
 
     if os.path.exists(possible_path):
         return possible_title
 
     if is_edited:
-        possible_title = f"{title.rsplit('.', 1)[0]}(1).{title.rsplit('.', 1)[1]}"
+        possible_title = f"{base_filename}(1).{file_extension}"
         possible_path = os.path.join(path, possible_title)
 
-        if os.path.exists(possible_path) and not os.path.exists(os.path.join(path, f"{title}(1).json")):
+        if os.path.exists(possible_path) and not os.path.exists(os.path.join(path, f"{'.'.join((base_filename, file_extension))}(1).json")):
             return possible_title
 
     return None
@@ -82,7 +87,7 @@ def truncate_title(title, length=47):
     return f"{title.rsplit('.', 1)[0][:length]}.{title.rsplit('.', 1)[1]}"
 
 
-def move_to_non_edited(filepath, destination_dir):
+def move_to_original(filepath, destination_dir):
     """Moves the original media to another folder."""
     os.replace(filepath, os.path.join(destination_dir, os.path.basename(filepath)))
 
@@ -113,36 +118,42 @@ def sanitize_title(title):
     )
 
 
-def find_duplicate_name(title, media_moved, recursion_level=1):
+def find_duplicate_name(path, base_filename, file_extension, media_moved, recursion_level=1):
     """
     Recursively searches for a non-duplicate name by appending a number.
 
     Args:
-        title: Original title
+        path: Directory path
+        base_filename: Original title without extension
+        file_extension: Extension of the original title
         media_moved: List of already moved media titles
         recursion_level: Current recursion level (appended to the title)
 
     Returns:
-        Non-duplicate title
+        Non-duplicate title if file exists, None otherwise
     """
-    title_candidate = f"{title.rsplit('.', 1)[0]}({recursion_level}).{title.rsplit('.', 1)[1]}"
+    title_candidate = f"{base_filename}({recursion_level}).{file_extension}"
+    possible_path = os.path.join(path, title_candidate)
 
-    if title_candidate in media_moved:
-        return find_duplicate_name(title, media_moved, recursion_level + 1)
+    if title_candidate in media_moved or not os.path.exists(possible_path):
+        if title_candidate in media_moved:
+            return find_duplicate_name(path, base_filename, file_extension, media_moved, recursion_level + 1)
+        else:
+            return None
 
     return title_candidate
 
 
-def create_folders(matched_dir, non_edited_dir):
+def create_folders(matched_dir, original_dir):
     """
     Creates the necessary folders if they don't exist.
 
     Args:
         matched_dir: Directory for matched media
-        non_edited_dir: Directory for non-edited (original) media
+        original_dir: Directory for original (non-edited) media
     """
     os.makedirs(matched_dir, exist_ok=True)
-    os.makedirs(non_edited_dir, exist_ok=True)
+    os.makedirs(original_dir, exist_ok=True)
 
 
 def to_deg(value, loc):
