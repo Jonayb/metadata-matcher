@@ -2,7 +2,10 @@ import os
 from datetime import datetime
 import piexif
 from fractions import Fraction
+from timezonefinder import TimezoneFinder
+import pytz
 
+tf = TimezoneFinder()
 
 
 def search_media(path, title, media_moved, original_dir, edited_word, truncated=False):
@@ -194,17 +197,27 @@ def set_exif(filepath, image, lat, lng, altitude, timestamp):
     Sets EXIF data on an image file.
 
     Args:
-        filepath: Path to the image file
-        image: PIL image object
-        lat: Latitude
-        lng: Longitude
-        altitude: Altitude
-        timestamp: Timestamp to set as EXIF DateTime
+        filepath: Path to the image file.
+        image: PIL image object.
+        lat: Latitude.
+        lng: Longitude.
+        altitude: Altitude.
+        timestamp: UTC timestamp to set as EXIF DateTime.
     """
     exif_dict = piexif.load(image.info.get('exif', b''))
 
-    date_time = datetime.utcfromtimestamp(int(timestamp)).strftime('%Y:%m:%d %H:%M:%S')
-    exif_dict['0th'][piexif.ImageIFD.DateTime] = date_time
+    # Determine the timezone based on latitude and longitude
+    timezone_str = tf.timezone_at(lat=lat, lng=lng)
+
+    if timezone_str:
+        timezone = pytz.timezone(timezone_str)
+        local_time = datetime.fromtimestamp(int(timestamp), timezone)
+        date_time = local_time.strftime('%Y:%m:%d %H:%M:%S')
+    else:
+        # Fallback to UTC if timezone cannot be determined
+        date_time = datetime.utcfromtimestamp(int(timestamp)).strftime('%Y:%m:%d %H:%M:%S')
+        print("No location data, falling back to UTC.")
+
     exif_dict['Exif'][piexif.ExifIFD.DateTimeOriginal] = date_time
     exif_dict['Exif'][piexif.ExifIFD.DateTimeDigitized] = date_time
 
