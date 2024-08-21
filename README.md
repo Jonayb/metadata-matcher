@@ -5,7 +5,7 @@ Welcome to the improved and actively maintained fork of [GooglePhotosMatcher](ht
 ### What's New:
 - **Preserve Original Metadata**: Fixed issues where original photo metadata was lost.
 - **Keep Original File Sizes**: Fixed the issue where file sizes varied after processing.
-- **Accurate Time Zones**:  Corrected timestamp processing. The UTC datetime is now switched to the correct timezone from location latitude and longitude.
+- **Accurate Time Zones**:  Corrected timestamp processing. The UTC datetime from Google Takeout is now switched to the correct timezone from location latitude and longitude.
 
 ## Restore Your Photo Metadata in 3 Easy Steps:
 
